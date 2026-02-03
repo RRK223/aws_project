@@ -1,0 +1,121 @@
+name: 'Terraform CI/CD'
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# These permissions are needed for OIDC authentication and for posting the plan back to the PR
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: 'Validate Terraform'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0 # Specify your terraform version
+
+      - name: 'Terraform Format Check'
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: 'Terraform Init'
+        id: init
+        run: terraform init
+
+      - name: 'Terraform Validate'
+        id: validate
+        run: terraform validate -no-color
+
+  plan:
+    name: 'Terraform Plan'
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request' # Only run on pull requests
+
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Configure AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: 'us-east-1' # Change to your desired region
+
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: 'Terraform Init'
+        run: terraform init
+
+      - name: 'Terraform Plan'
+        id: plan
+        run: terraform plan -var-file="terraform.tfvars" -no-color -out=tfplan
+
+      - name: 'Format Plan Output'
+        id: format-plan
+        run: |
+          # The `terraform show` output is wrapped in a code block for better formatting in the PR comment
+          PLAN_OUTPUT=$(terraform show -no-color tfplan)
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
+          echo "$PLAN_OUTPUT" >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 'Comment on PR'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `
+                ### Terraform Plan Results
+                ${{ env.PLAN }}
+              `
+            })
+
+  apply:
+    name: 'Terraform Apply'
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' # Only run on merge to main
+
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Configure AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: 'us-east-1' # Change to your desired region
+
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: 'Terraform Init'
+        run: terraform init
+
+      - name: 'Terraform Apply'
+        run: terraform apply -auto-approve -var-file="terraform.tfvars"
