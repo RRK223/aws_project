@@ -7,8 +7,8 @@ provider "aws" {
 module "vpc" {
   source = "./modules/vpc"
 
-  project_name = var.project_name
-  vpc_cidr     = var.vpc_cidr
+  project_name    = var.project_name
+  vpc_cidr        = var.vpc_cidr
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
 }
@@ -26,12 +26,12 @@ module "ec2" {
 module "alb" {
   source = "./modules/alb"
 
-  alb_name    = var.alb_name
-  vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.public_subnet_ids
-  target_group_port = var.target_group_port
+  alb_name              = var.alb_name
+  vpc_id                = module.vpc.vpc_id
+  subnet_ids            = module.vpc.public_subnet_ids
+  target_group_port     = var.target_group_port
   target_group_protocol = var.target_group_protocol
-  health_check_path = var.health_check_path
+  health_check_path     = var.health_check_path
 }
 
 module "ecr" {

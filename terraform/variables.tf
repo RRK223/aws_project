@@ -46,18 +46,18 @@ variable "alb_name" {
 }
 
 variable "target_group_port" {
-    description = "The port for the target group"
-    type = number
+  description = "The port for the target group"
+  type        = number
 }
 
 variable "target_group_protocol" {
-    description = "The protocol for the target group"
-    type = string
+  description = "The protocol for the target group"
+  type        = string
 }
 
 variable "health_check_path" {
-    description = "The health check path for the target group"
-    type = string
+  description = "The health check path for the target group"
+  type        = string
 }
 
 variable "repository_name" {
